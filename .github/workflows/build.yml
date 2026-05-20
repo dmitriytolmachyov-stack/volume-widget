@@ -5,7 +5,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Убираем все предупреждения Node.js, используя свежие стабильные экшены v4
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -53,7 +52,7 @@ jobs:
           }
           EOF
 
-          # Манифест с оверлей-разрешениями
+          # Манифест приложения с оверлей-разрешениями
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://android.com">
@@ -88,10 +87,10 @@ jobs:
           </LinearLayout>
           EOF
 
-          # Внешний вид плавающих кнопок
+          # Внешний вид плавающих кнопок виджета
           cat << 'EOF' > app/src/main/res/layout/widget_layout.xml
           <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://android.com" android:id="@+id/widget_root" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="5dp" android:background="#44000000">
+          <LinearLayout xmlns:android="http://github.com" android:id="@+id/widget_root" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="5dp" android:background="#44000000">
               <Button android:id="@+id/btn_volume_down" android:layout_width="60dp" android:layout_height="60dp" android:text="-" android:textSize="24sp" />
               <Button android:id="@+id/btn_volume_up" android:layout_width="60dp" android:layout_height="60dp" android:text="+" android:textSize="24sp" android:layout_marginLeft="5dp"/>
           </LinearLayout>
@@ -224,7 +223,7 @@ jobs:
               }
               private void startForegroundServiceNotification() {
                   String ID = "vol_channel";
-                  if (Build.VERSION.VERSION_CODES.O <= Build.VERSION.SDK_INT) {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                       NotificationChannel c = new NotificationChannel(ID, "Vol", NotificationManager.IMPORTANCE_LOW);
                       ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(c);
                   }
@@ -235,19 +234,17 @@ jobs:
           }
           EOF
 
-      # Генерируем официальный оберточный дистрибутив Gradle, минуя утилиту системы
-      - name: Inject Secure Gradle Wrapper Environment
+      # Подключаем изолированное окружение Gradle 8.4
+      - name: Inject Secure Gradle Environment
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.4
 
-      # Выдаем Linux-серверу права на запуск компилятора и собираем проект
+      # Собираем Android Debug APK напрямую через глобальный вызов утилиты gradle
       - name: Build Android Debug Package
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+        run: gradle assembleDebug
 
-      # Отправляем готовый APK в архив скачивания
+      # Отправляем готовый APK в архив скачивания репозитория
       - name: Distribute APK Artifact
         uses: actions/upload-artifact@v4
         with:
