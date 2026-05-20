@@ -19,7 +19,6 @@ jobs:
           mkdir -p app/src/main/java/com/example/volumewidget
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
-          mkdir -p app/src/main/res/drawable
 
           # Конфигурация проекта Gradle
           cat << 'EOF' > settings.gradle
@@ -53,15 +52,6 @@ jobs:
           }
           EOF
 
-          # Стильный закругленный дизайн для кнопок виджета
-          cat << 'EOF' > app/src/main/res/drawable/widget_button_bg.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://android.com" android:shape="rectangle">
-              <corners android:radius="16dp" />
-              <solid android:color="#FF0000" />
-          </shape>
-          EOF
-
           # Манифест приложения (Android 10+)
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
@@ -80,7 +70,7 @@ jobs:
           </manifest>
           EOF
 
-          # Обновленный интерфейс настроек: Добавлен выбор потоков звука
+          # Интерфейс главного меню настроек
           cat << 'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <ScrollView xmlns:android="http://android.com" android:layout_width="match_parent" android:layout_height="match_parent">
@@ -112,12 +102,12 @@ jobs:
           </ScrollView>
           EOF
 
-          # Компактный прозрачный контейнер виджета
+          # Разметка контейнера виджета (кнопки теперь без жесткого XML фона)
           cat << 'EOF' > app/src/main/res/layout/widget_layout.xml
           <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://android.com" android:id="@+id/widget_root" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="6dp" android:background="#22000000">
-              <Button android:id="@+id/btn_volume_down" android:layout_width="60dp" android:layout_height="60dp" android:text="-" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="26sp" android:background="@drawable/widget_button_bg" />
-              <Button android:id="@+id/btn_volume_up" android:layout_width="60dp" android:layout_height="60dp" android:text="+" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="26sp" android:background="@drawable/widget_button_bg" android:layout_marginLeft="8dp"/>
+          <LinearLayout xmlns:android="http://android.com" android:id="@+id/widget_root" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="8dp" android:background="#33000000">
+              <Button android:id="@+id/btn_volume_down" android:layout_width="60dp" android:layout_height="60dp" android:text="-" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="26sp" />
+              <Button android:id="@+id/btn_volume_up" android:layout_width="60dp" android:layout_height="60dp" android:text="+" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="26sp" android:layout_marginLeft="10dp"/>
           </LinearLayout>
           EOF
 
@@ -125,7 +115,7 @@ jobs:
           <resources><string name="app_name">VolumeWidget</string></resources>
           EOF
 
-          # Логика сохранения настроек потоков аудио и кастомизации дизайна
+          # Java код MainActivity
           cat << 'EOF' > app/src/main/java/com/example/volumewidget/MainActivity.java
           package com.example.volumewidget;
           import android.content.Intent;
@@ -161,21 +151,15 @@ jobs:
               private void saveSettings() {
                   SharedPreferences prefs = getSharedPreferences("WidgetPrefs", MODE_PRIVATE);
                   SharedPreferences.Editor editor = prefs.edit();
-                  
-                  // Сохранение размера (минимум 35dp)
                   int size = seekSize.getProgress();
-                  if(size < 35) size = 35;
+                  if(size < 40) size = 40;
                   editor.putInt("btn_size", size);
-                  
-                  // Выбор цвета
-                  int color = Color.parseColor("#E53935"); // Red
+                  int color = Color.parseColor("#E53935");
                   int checkedColorId = colorGroup.getCheckedRadioButtonId();
                   if (checkedColorId == R.id.radio_blue) color = Color.parseColor("#1E88E5");
                   else if (checkedColorId == R.id.radio_green) color = Color.parseColor("#43A047");
                   else if (checkedColorId == R.id.radio_dark) color = Color.parseColor("#37474F");
                   editor.putInt("btn_color", color);
-                  
-                  // Выбор звукового вывода (системного аудиопотока)
                   int targetStream = AudioManager.STREAM_MUSIC;
                   int checkedStreamId = streamGroup.getCheckedRadioButtonId();
                   if (checkedStreamId == R.id.stream_voice) targetStream = AudioManager.STREAM_VOICE_CALL;
@@ -183,7 +167,6 @@ jobs:
                   else if (checkedStreamId == R.id.stream_alarm) targetStream = AudioManager.STREAM_ALARM;
                   else if (checkedStreamId == R.id.stream_notification) targetStream = AudioManager.STREAM_NOTIFICATION;
                   editor.putInt("audio_stream", targetStream);
-                  
                   editor.apply();
               }
               private void checkOverlayPermission() {
@@ -195,7 +178,7 @@ jobs:
                   }
               }
               private void startVolumeService() {
-                  stopService(new Intent(this, VolumeService.class)); // перезапуск сервиса при изменении настроек
+                  stopService(new Intent(this, VolumeService.class));
                   Intent intent = new Intent(this, VolumeService.class);
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent);
                   else startService(intent);
@@ -206,13 +189,13 @@ jobs:
                   super.onActivityResult(requestCode, resultCode, data);
                   if (requestCode == REQ_CODE) {
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) startVolumeService();
-                      else Toast.makeText(this, "Необходимо разрешение на отображение поверх окон!", Toast.LENGTH_SHORT).show();
+                      else Toast.makeText(this, "Разрешение отклонено!", Toast.LENGTH_SHORT).show();
                   }
               }
           }
           EOF
 
-          # Логика динамического управления выбранным типом звука
+          # Java код VolumeService с функциями Drag and Drop и отрисовки формы
           cat << 'EOF' > app/src/main/java/com/example/volumewidget/VolumeService.java
           package com.example.volumewidget;
           import android.app.Notification;
@@ -229,6 +212,7 @@ jobs:
           import android.os.IBinder;
           import android.view.Gravity;
           import android.view.LayoutInflater;
+          import android.view.MotionEvent;
           import android.view.View;
           import android.view.WindowManager;
           import android.widget.Button;
@@ -245,37 +229,61 @@ jobs:
                   audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
                   windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
                   floatingView = LayoutInflater.from(this).inflate(R.layout.widget_layout, null);
-                  
+
                   final WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                           WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                           WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                           WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-                  params.gravity = Gravity.CENTER_VERTICAL | Gravity.END;
-                  
-                  // Считывание кастомного дизайна и параметров вывода звука
+                  params.gravity = Gravity.TOP | Gravity.START;
+                  params.x = 200;
+                  params.y = 400;
+
                   SharedPreferences prefs = getSharedPreferences("WidgetPrefs", MODE_PRIVATE);
                   int sizeDp = prefs.getInt("btn_size", 60);
                   int color = prefs.getInt("btn_color", android.graphics.Color.RED);
-                  int selectedAudioStream = prefs.getInt("audio_stream", AudioManager.STREAM_MUSIC);
-                  
+                  final int selectedAudioStream = prefs.getInt("audio_stream", AudioManager.STREAM_MUSIC);
+
                   int sizePx = (int) (sizeDp * getResources().getDisplayMetrics().density);
                   Button btnDown = floatingView.findViewById(R.id.btn_volume_down);
                   Button btnUp = floatingView.findViewById(R.id.btn_volume_up);
-                  
-                  // Применение размеров
+
                   btnDown.getLayoutParams().width = sizePx; btnDown.getLayoutParams().height = sizePx;
                   btnUp.getLayoutParams().width = sizePx; btnUp.getLayoutParams().height = sizePx;
-                  
-                  // Применение цвета к закругленному фону (дизайн drawable)
-                  GradientDrawable bgDown = (GradientDrawable) btnDown.getBackground();
-                  if(bgDown != null) bgDown.setColor(color);
-                  GradientDrawable bgUp = (GradientDrawable) btnUp.getBackground();
-                  if(bgUp != null) bgUp.setColor(color);
-                  
-                  // Управление громкостью выбранного звукового канала
+
+                  // Программное создание красивой закругленной подложки (Shape) кнопок
+                  GradientDrawable shape = new GradientDrawable();
+                  shape.setShape(GradientDrawable.RECTANGLE);
+                  shape.setCornerRadius(18 * getResources().getDisplayMetrics().density);
+                  shape.setColor(color);
+                  btnDown.setBackground(shape);
+                  btnUp.setBackground(shape.getConstantState().newDrawable().mutate());
+
                   btnDown.setOnClickListener(v -> audioManager.adjustStreamVolume(selectedAudioStream, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI));
                   btnUp.setOnClickListener(v -> audioManager.adjustStreamVolume(selectedAudioStream, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI));
-                  
+
+                  // Реализация механизма перетаскивания (Drag and Drop) всего виджета
+                  floatingView.setOnTouchListener(new View.OnTouchListener() {
+                      private int initialX, initialY;
+                      private float initialTouchX, initialTouchY;
+                      @Override
+                      public boolean onTouch(View v, MotionEvent event) {
+                          switch (event.getAction()) {
+                              case MotionEvent.ACTION_DOWN:
+                                  initialX = params.x;
+                                  initialY = params.y;
+                                  initialTouchX = event.getRawX();
+                                  initialTouchY = event.getRawY();
+                                  return true;
+                              case MotionEvent.ACTION_MOVE:
+                                  params.x = initialX + (int) (event.getRawX() - initialTouchX);
+                                  params.y = initialY + (int) (event.getRawY() - initialTouchY);
+                                  windowManager.updateViewLayout(floatingView, params);
+                                  return true;
+                          }
+                          return false;
+                      }
+                  });
+
                   windowManager.addView(floatingView, params);
               }
               private void startForegroundServiceNotification() {
@@ -284,24 +292,24 @@ jobs:
                       NotificationChannel c = new NotificationChannel(ID, "Vol Control", NotificationManager.IMPORTANCE_LOW);
                       ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(c);
                   }
-                  Notification n = new NotificationCompat.Builder(this, ID).setContentTitle("Виджет громкости").setSmallIcon(android.R.drawable.ic_media_play).build();
+                  Notification n = new NotificationCompat.Builder(this, ID).setContentTitle("Виджет громкости активен").setSmallIcon(android.R.drawable.ic_media_play).build();
                   startForeground(1, n);
               }
               @Override public void onDestroy() { super.onDestroy(); if (floatingView != null) windowManager.removeView(floatingView); }
           }
           EOF
 
-      # Инициализируем полностью изолированную среду сборки Gradle
+      # Подключаем надежную изолированную среду сборки Gradle 8.4
       - name: Inject Secure Gradle Environment
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.4
 
-      # Компилируем готовый пакет
+      # Компилируем готовый пакет без конфликтов ресурсов
       - name: Build Android Debug Package
         run: gradle assembleDebug
 
-      # Сохраняем артефакт в архив скачивания
+      # Отправляем готовый APK в архив скачивания репозитория
       - name: Distribute APK Artifact
         uses: actions/upload-artifact@v4
         with:
