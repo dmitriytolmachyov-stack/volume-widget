@@ -5,22 +5,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Используем актуальные версии экшенов, чтобы убрать предупреждения Node.js
-      - uses: actions/checkout@v4
-      
-      - name: set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'zulu'
-          
-      - name: Initialize Project Files
+      - name: Build App Packages Directly
         run: |
+          # 1. Готовим структуру проекта
           mkdir -p app/src/main/java/com/example/volumewidget
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
           
-          # Создаем settings.gradle через EOF во избежание проблем с синтаксисом bash
+          # 2. Создаем конфигурационные файлы Gradle
           cat << 'EOF' > settings.gradle
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal(); } }
           dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral(); } }
@@ -28,12 +20,10 @@ jobs:
           include ':app'
           EOF
           
-          # Корневой build.gradle
           cat << 'EOF' > build.gradle
           plugins { id 'com.android.application' version '8.2.0' apply false }
           EOF
           
-          # Модульный build.gradle
           cat << 'EOF' > app/build.gradle
           plugins { id 'com.android.application' }
           android { 
@@ -54,7 +44,7 @@ jobs:
           }
           EOF
           
-          # Манифест приложения
+          # 3. Ресурсы и Манифест
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://android.com">
@@ -72,7 +62,6 @@ jobs:
           </manifest>
           EOF
           
-          # Экран настроек
           cat << 'EOF' > app/src/main/res/layout/activity_main.xml
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://android.com" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="16dp">
@@ -89,7 +78,6 @@ jobs:
           </LinearLayout>
           EOF
           
-          # Разметка самого виджета
           cat << 'EOF' > app/src/main/res/layout/widget_layout.xml
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://android.com" android:id="@+id/widget_root" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="5dp" android:background="#44000000">
@@ -98,12 +86,11 @@ jobs:
           </LinearLayout>
           EOF
           
-          # Строковые ресурсы
           cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources><string name="app_name">VolumeWidget</string></resources>
           EOF
           
-          # Java код MainActivity
+          # 4. Исходный Java код приложения
           cat << 'EOF' > app/src/main/java/com/example/volumewidget/MainActivity.java
           package com.example.volumewidget;
           import android.content.Intent;
@@ -172,7 +159,6 @@ jobs:
           }
           EOF
           
-          # Java код VolumeService
           cat << 'EOF' > app/src/main/java/com/example/volumewidget/VolumeService.java
           package com.example.volumewidget;
           import android.app.Notification;
@@ -237,13 +223,11 @@ jobs:
           }
           EOF
 
-      - name: Setup Gradle
-        run: gradle wrapper --gradle-version 8.4
+          # 5. Скачиваем утилиту сборки Gradle и компилируем APK
+          gradle wrapper --gradle-version 8.4
+          ./gradlew assembleDebug
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
-
-      - name: Upload APK Artifact
+      - name: Save APK File
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
