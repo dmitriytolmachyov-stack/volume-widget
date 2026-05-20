@@ -1,14 +1,11 @@
 name: Build Android APK
 on: [push, workflow_dispatch]
 
-# Принудительно переводим сборщик на актуальную версию Node.js
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Используем актуальные версии экшенов, чтобы убрать предупреждения Node.js
       - uses: actions/checkout@v4
       
       - name: set up JDK 17
@@ -23,33 +20,222 @@ jobs:
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
           
-          # Settings.gradle
-          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal(); } }" > settings.gradle
-          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral(); } }" >> settings.gradle
-          echo "rootProject.name = 'VolumeWidget'" >> settings.gradle
-          echo "include ':app'" >> settings.gradle
+          # Создаем settings.gradle через EOF во избежание проблем с синтаксисом bash
+          cat << 'EOF' > settings.gradle
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal(); } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral(); } }
+          rootProject.name = "VolumeWidget"
+          include ':app'
+          EOF
           
-          # Root build.gradle
-          echo "plugins { id 'com.android.application' version '8.2.0' apply false }" > build.gradle
+          # Корневой build.gradle
+          cat << 'EOF' > build.gradle
+          plugins { id 'com.android.application' version '8.2.0' apply false }
+          EOF
           
-          # App build.gradle
-          echo "plugins { id 'com.android.application' }" > app/build.gradle
-          echo "android { namespace 'com.example.volumewidget'; compileSdk 34; defaultConfig { applicationId 'com.example.volumewidget'; minSdk 29; targetSdk 34; versionCode 1; versionName '1.0' }; buildTypes { release { minifyEnabled false } } }" >> app/build.gradle
-          echo "dependencies { implementation 'androidx.appcompat:appcompat:1.6.1'; implementation 'com.google.android.material:material:1.11.0' }" >> app/build.gradle
+          # Модульный build.gradle
+          cat << 'EOF' > app/build.gradle
+          plugins { id 'com.android.application' }
+          android { 
+              namespace 'com.example.volumewidget'
+              compileSdk 34 
+              defaultConfig { 
+                  applicationId 'com.example.volumewidget'
+                  minSdk 29 
+                  targetSdk 34 
+                  versionCode 1 
+                  versionName '1.0' 
+              } 
+              buildTypes { release { minifyEnabled false } } 
+          }
+          dependencies { 
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+          }
+          EOF
           
-          # Manifest
-          echo '<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://android.com"><uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" /><uses-permission android:name="android.permission.FOREGROUND_SERVICE" /><application android:allowBackup="true" android:label="VolumeWidget" android:theme="@style/Theme.AppCompat.Light.NoActionBar"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity><service android:name=".VolumeService" android:enabled="true" android:exported="false" /></application></manifest>' > app/src/main/AndroidManifest.xml
+          # Манифест приложения
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://android.com">
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <application android:allowBackup="true" android:label="VolumeWidget" android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+                  <service android:name=".VolumeService" android:enabled="true" android:exported="false" />
+              </application>
+          </manifest>
+          EOF
           
-          # Layouts & Strings
-          echo '<?xml version="1.0" encoding="utf-8"?><LinearLayout xmlns:android="http://android.com" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="16dp"><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Настройки виджета громкости" android:textSize="20sp" android:layout_marginBottom="20dp"/><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Размер кнопок (dp):"/><SeekBar android:id="@+id/seek_size" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150" android:progress="60"/><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Цвет кнопок:" android:layout_marginTop="20dp"/><RadioGroup android:id="@+id/color_group" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal"><RadioButton android:id="@+id/radio_red" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Красный" android:checked="true"/><RadioButton android:id="@+id/radio_blue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Синий"/><RadioButton android:id="@+id/radio_green" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Зеленый"/></RadioGroup><Button android:id="@+id/btn_apply" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Применить и запустить" android:layout_marginTop="30dp"/></LinearLayout>' > app/src/main/res/layout/activity_main.xml
-          echo '<?xml version="1.0" encoding="utf-8"?><LinearLayout xmlns:android="http://android.com" android:id="@+id/widget_root" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="5dp" android:background="#44000000"><Button android:id="@+id/btn_volume_down" android:layout_width="60dp" android:layout_height="60dp" android:text="-" android:textSize="24sp" /><Button android:id="@+id/btn_volume_up" android:layout_width="60dp" android:layout_height="60dp" android:text="+" android:textSize="24sp" android:layout_marginLeft="5dp"/></LinearLayout>' > app/src/main/res/layout/widget_layout.xml
-          echo '<resources><string name="app_name">VolumeWidget</string></resources>' > app/src/main/res/values/strings.xml
+          # Экран настроек
+          cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://android.com" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="16dp">
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Настройки виджета громкости" android:textSize="20sp" android:layout_marginBottom="20dp"/>
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Размер кнопок (dp):"/>
+              <SeekBar android:id="@+id/seek_size" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="150" android:progress="60"/>
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Цвет кнопок:" android:layout_marginTop="20dp"/>
+              <RadioGroup android:id="@+id/color_group" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
+                  <RadioButton android:id="@+id/radio_red" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Красный" android:checked="true"/>
+                  <RadioButton android:id="@+id/radio_blue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Синий"/>
+                  <RadioButton android:id="@+id/radio_green" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Зеленый"/>
+              </RadioGroup>
+              <Button android:id="@+id/btn_apply" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Применить и запустить" android:layout_marginTop="30dp"/>
+          </LinearLayout>
+          EOF
           
-          # Java MainActivity
-          echo 'package com.example.volumewidget; import android.content.Intent; import android.content.SharedPreferences; import android.graphics.Color; import android.net.Uri; import android.os.Build; import android.os.Bundle; import android.provider.Settings; import android.widget.Button; import android.widget.RadioGroup; import android.widget.SeekBar; import android.widget.Toast; import androidx.appcompat.app.AppCompatActivity; public class MainActivity extends AppCompatActivity { private static final int REQ_CODE = 5469; private SeekBar seekSize; private RadioGroup colorGroup; @Override protected void onCreate(Bundle savedInstanceState) { super.onCreate(savedInstanceState); setContentView(R.layout.activity_main); seekSize = findViewById(R.id.seek_size); colorGroup = findViewById(R.id.color_group); Button btnApply = findViewById(R.id.btn_apply); btnApply.setOnClickListener(v -> { saveSettings(); checkOverlayPermission(); }); } private void saveSettings() { SharedPreferences prefs = getSharedPreferences("WidgetPrefs", MODE_PRIVATE); SharedPreferences.Editor editor = prefs.edit(); int size = seekSize.getProgress(); if(size < 30) size = 30; editor.putInt("btn_size", size); int color = Color.RED; int checkedId = colorGroup.getCheckedRadioButtonId(); if (checkedId == R.id.radio_blue) color = Color.BLUE; else if (checkedId == R.id.radio_green) color = Color.GREEN; editor.putInt("btn_color", color); editor.apply(); } private void checkOverlayPermission() { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) { Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())); startActivityForResult(intent, REQ_CODE); } else { startVolumeService(); } } private void startVolumeService() { Intent intent = new Intent(this, VolumeService.class); if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent); else startService(intent); finish(); } @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) { super.onActivityResult(requestCode, resultCode, data); if (requestCode == REQ_CODE) { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) startVolumeService(); else Toast.makeText(this, "Разрешение отклонено!", Toast.LENGTH_SHORT).show(); } } }' > app/src/main/java/com/example/volumewidget/MainActivity.java
+          # Разметка самого виджета
+          cat << 'EOF' > app/src/main/res/layout/widget_layout.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://android.com" android:id="@+id/widget_root" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:padding="5dp" android:background="#44000000">
+              <Button android:id="@+id/btn_volume_down" android:layout_width="60dp" android:layout_height="60dp" android:text="-" android:textSize="24sp" />
+              <Button android:id="@+id/btn_volume_up" android:layout_width="60dp" android:layout_height="60dp" android:text="+" android:textSize="24sp" android:layout_marginLeft="5dp"/>
+          </LinearLayout>
+          EOF
           
-          # Java VolumeService
-          echo 'package com.example.volumewidget; import android.app.Notification; import android.app.NotificationChannel; import android.app.NotificationManager; import android.app.Service; import android.content.Context; import android.content.Intent; import android.content.SharedPreferences; import android.graphics.Color; import android.graphics.PixelFormat; import android.media.AudioManager; import android.os.Build; import android.os.IBinder; import android.view.Gravity; import android.view.LayoutInflater; import android.view.View; import android.view.WindowManager; import android.widget.Button; import androidx.core.app.NotificationCompat; public class VolumeService extends Service { private WindowManager windowManager; private View floatingView; private AudioManager audioManager; @Override public IBinder onBind(Intent intent) { return null; } @Override public void onCreate() { super.onCreate(); startForegroundServiceNotification(); audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE); windowManager = (WindowManager) getSystemService(WINDOW_SERVICE); floatingView = LayoutInflater.from(this).inflate(R.layout.widget_layout, null); final WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT); params.gravity = Gravity.CENTER_VERTICAL | Gravity.END; SharedPreferences prefs = getSharedPreferences("WidgetPrefs", MODE_PRIVATE); int sizeDp = prefs.getInt("btn_size", 60); int color = prefs.getInt("btn_color", Color.RED); int sizePx = (int) (sizeDp * getResources().getDisplayMetrics().density); Button btnDown = floatingView.findViewById(R.id.btn_volume_down); Button btnUp = floatingView.findViewById(R.id.btn_volume_up); btnDown.getLayoutParams().width = sizePx; btnDown.getLayoutParams().height = sizePx; btnDown.setBackgroundColor(color); btnUp.getLayoutParams().width = sizePx; btnUp.getLayoutParams().height = sizePx; btnUp.setBackgroundColor(color); btnDown.setOnClickListener(v -> audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)); btnUp.setOnClickListener(v -> audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)); windowManager.addView(floatingView, params); } private void startForegroundServiceNotification() { String ID = "vol_channel"; if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) { NotificationChannel c = new NotificationChannel(ID, "Vol", NotificationManager.IMPORTANCE_LOW); ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(c); } Notification n = new NotificationCompat.Builder(this, ID).setContentTitle("Громкость").setSmallIcon(android.R.drawable.ic_media_play).build(); startForeground(1, n); } @Override public void onDestroy() { super.onDestroy(); if (floatingView != null) windowManager.removeView(floatingView); } }' > app/src/main/java/com/example/volumewidget/VolumeService.java
+          # Строковые ресурсы
+          cat << 'EOF' > app/src/main/res/values/strings.xml
+          <resources><string name="app_name">VolumeWidget</string></resources>
+          EOF
+          
+          # Java код MainActivity
+          cat << 'EOF' > app/src/main/java/com/example/volumewidget/MainActivity.java
+          package com.example.volumewidget;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.provider.Settings;
+          import android.widget.Button;
+          import android.widget.RadioGroup;
+          import android.widget.SeekBar;
+          import android.widget.Toast;
+          import androidx.appcompat.app.AppCompatActivity;
+          public class MainActivity extends AppCompatActivity {
+              private static final int REQ_CODE = 5469;
+              private SeekBar seekSize;
+              private RadioGroup colorGroup;
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+                  seekSize = findViewById(R.id.seek_size);
+                  colorGroup = findViewById(R.id.color_group);
+                  Button btnApply = findViewById(R.id.btn_apply);
+                  btnApply.setOnClickListener(v -> {
+                      saveSettings();
+                      checkOverlayPermission();
+                  });
+              }
+              private void saveSettings() {
+                  SharedPreferences prefs = getSharedPreferences("WidgetPrefs", MODE_PRIVATE);
+                  SharedPreferences.Editor editor = prefs.edit();
+                  int size = seekSize.getProgress();
+                  if(size < 30) size = 30;
+                  editor.putInt("btn_size", size);
+                  int color = Color.RED;
+                  int checkedId = colorGroup.getCheckedRadioButtonId();
+                  if (checkedId == R.id.radio_blue) color = Color.BLUE;
+                  else if (checkedId == R.id.radio_green) color = Color.GREEN;
+                  editor.putInt("btn_color", color);
+                  editor.apply();
+              }
+              private void checkOverlayPermission() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                      Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                      startActivityForResult(intent, REQ_CODE);
+                  } else {
+                      startVolumeService();
+                  }
+              }
+              private void startVolumeService() {
+                  Intent intent = new Intent(this, VolumeService.class);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent);
+                  else startService(intent);
+                  finish();
+              }
+              @Override
+              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                  super.onActivityResult(requestCode, resultCode, data);
+                  if (requestCode == REQ_CODE) {
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) startVolumeService();
+                      else Toast.makeText(this, "Разрешение отклонено!", Toast.LENGTH_SHORT).show();
+                  }
+              }
+          }
+          EOF
+          
+          # Java код VolumeService
+          cat << 'EOF' > app/src/main/java/com/example/volumewidget/VolumeService.java
+          package com.example.volumewidget;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.Service;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Color;
+          import android.graphics.PixelFormat;
+          import android.media.AudioManager;
+          import android.os.Build;
+          import android.os.IBinder;
+          import android.view.Gravity;
+          import android.view.LayoutInflater;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import androidx.core.app.NotificationCompat;
+          public class VolumeService extends Service {
+              private WindowManager windowManager;
+              private View floatingView;
+              private AudioManager audioManager;
+              @Override public IBinder onBind(Intent intent) { return null; }
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  startForegroundServiceNotification();
+                  audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                  windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+                  floatingView = LayoutInflater.from(this).inflate(R.layout.widget_layout, null);
+                  final WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                          WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                          WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+                  params.gravity = Gravity.CENTER_VERTICAL | Gravity.END;
+                  SharedPreferences prefs = getSharedPreferences("WidgetPrefs", MODE_PRIVATE);
+                  int sizeDp = prefs.getInt("btn_size", 60);
+                  int color = prefs.getInt("btn_color", Color.RED);
+                  int sizePx = (int) (sizeDp * getResources().getDisplayMetrics().density);
+                  Button btnDown = floatingView.findViewById(R.id.btn_volume_down);
+                  Button btnUp = floatingView.findViewById(R.id.btn_volume_up);
+                  btnDown.getLayoutParams().width = sizePx; btnDown.getLayoutParams().height = sizePx;
+                  btnDown.setBackgroundColor(color);
+                  btnUp.getLayoutParams().width = sizePx; btnUp.getLayoutParams().height = sizePx;
+                  btnUp.setBackgroundColor(color);
+                  btnDown.setOnClickListener(v -> audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI));
+                  btnUp.setOnClickListener(v -> audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI));
+                  windowManager.addView(floatingView, params);
+              }
+              private void startForegroundServiceNotification() {
+                  String ID = "vol_channel";
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      NotificationChannel c = new NotificationChannel(ID, "Vol", NotificationManager.IMPORTANCE_LOW);
+                      ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(c);
+                  }
+                  Notification n = new NotificationCompat.Builder(this, ID).setContentTitle("Громкость").setSmallIcon(android.R.drawable.ic_media_play).build();
+                  startForeground(1, n);
+              }
+              @Override public void onDestroy() { super.onDestroy(); if (floatingView != null) windowManager.removeView(floatingView); }
+          }
+          EOF
 
       - name: Setup Gradle
         run: gradle wrapper --gradle-version 8.4
